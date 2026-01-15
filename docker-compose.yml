@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ksc_db
+    restart: always
+    environment:
+      POSTGRES_USER: ksc
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ksc_data
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+      # Map your local schema folder to the special init directory.
+      # Postgres runs any .sql files here exactly once when creating the DB.
+      - ./backend/sql/schema:/docker-entrypoint-initdb.d
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8081:8080"
+
+volumes:
+  pgdata:

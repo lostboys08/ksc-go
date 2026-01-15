@@ -1,0 +1,20 @@
+version: "2"
+sql:
+  - schema: "sql/schema" # Relative to backend/
+    queries: "sql/queries.sql" # Relative to backend/
+    engine: "postgresql"
+    gen:
+      go:
+        package: "database"
+        out: "internal/database" # Relative to backend/
+
+        # 1. Clean Output Settings
+        emit_json_tags: true
+        emit_prepared_queries: false
+        emit_interface: false
+        emit_exact_table_names: false
+
+        # 2. The UUID Type Safety Override
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
