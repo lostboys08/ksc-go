@@ -25,6 +25,17 @@ type Job struct {
 	UpdatedAt            sql.NullTime   `json:"updated_at"`
 }
 
+type JobCostLedger struct {
+	ID              string         `json:"id"`
+	Job             string         `json:"job"`
+	Phase           sql.NullString `json:"phase"`
+	Cat             sql.NullString `json:"cat"`
+	TransactionType sql.NullString `json:"transaction_type"`
+	TransactionDate sql.NullTime   `json:"transaction_date"`
+	Amount          string         `json:"amount"`
+	CreatedAt       sql.NullTime   `json:"created_at"`
+}
+
 type JobItem struct {
 	ID             uuid.UUID      `json:"id"`
 	JobID          uuid.UUID      `json:"job_id"`
@@ -38,6 +49,7 @@ type JobItem struct {
 	Qty            string         `json:"qty"`
 	Unit           sql.NullString `json:"unit"`
 	UnitPrice      string         `json:"unit_price"`
+	UpdatedAt      sql.NullTime   `json:"updated_at"`
 }
 
 type PayApplication struct {
@@ -47,4 +59,23 @@ type PayApplication struct {
 	Qty             string       `json:"qty"`
 	StoredMaterials string       `json:"stored_materials"`
 	UpdatedAt       sql.NullTime `json:"updated_at"`
+}
+
+type PayApplicationCumulative struct {
+	JobItemID                uuid.UUID     `json:"job_item_id"`
+	PayAppMonth              time.Time     `json:"pay_app_month"`
+	JobID                    uuid.UUID     `json:"job_id"`
+	ParentID                 uuid.NullUUID `json:"parent_id"`
+	ThisMonthQty             string        `json:"this_month_qty"`
+	StoredMaterials          string        `json:"stored_materials"`
+	TotalQty                 string        `json:"total_qty"`
+	UnitPrice                string        `json:"unit_price"`
+	Budget                   string        `json:"budget"`
+	CumulativeQty            string        `json:"cumulative_qty"`
+	PreviousCumulativeQty    string        `json:"previous_cumulative_qty"`
+	RemainingQty             string        `json:"remaining_qty"`
+	PercentComplete          string        `json:"percent_complete"`
+	ThisMonthAmount          string        `json:"this_month_amount"`
+	CumulativeAmount         string        `json:"cumulative_amount"`
+	PreviousCumulativeAmount string        `json:"previous_cumulative_amount"`
 }

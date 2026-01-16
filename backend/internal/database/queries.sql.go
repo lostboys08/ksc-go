@@ -22,6 +22,159 @@ func (q *Queries) DeleteJobItemsByJob(ctx context.Context, jobID uuid.UUID) erro
 	return err
 }
 
+const getAllJobs = `-- name: GetAllJobs :many
+SELECT id, job_number, job_name FROM jobs ORDER BY job_number
+`
+
+type GetAllJobsRow struct {
+	ID        uuid.UUID `json:"id"`
+	JobNumber string    `json:"job_number"`
+	JobName   string    `json:"job_name"`
+}
+
+func (q *Queries) GetAllJobs(ctx context.Context) ([]GetAllJobsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllJobsRow
+	for rows.Next() {
+		var i GetAllJobsRow
+		if err := rows.Scan(&i.ID, &i.JobNumber, &i.JobName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChildrenWithPayApps = `-- name: GetChildrenWithPayApps :many
+SELECT
+    ji.id,
+    ji.item_number,
+    ji.qty AS total_qty,
+    ji.unit_price,
+    COALESCE(pa.qty, '0')::TEXT AS pay_app_qty,
+    COALESCE(pac.cumulative_qty, '0')::TEXT AS cumulative_qty,
+    COALESCE(pac.previous_cumulative_qty, '0')::TEXT AS previous_cumulative_qty
+FROM job_items ji
+LEFT JOIN pay_applications pa ON ji.id = pa.job_item_id AND pa.pay_app_month = $2
+LEFT JOIN pay_application_cumulative pac ON ji.id = pac.job_item_id AND pac.pay_app_month = $2
+WHERE ji.parent_id = $1
+`
+
+type GetChildrenWithPayAppsParams struct {
+	ParentID    uuid.NullUUID `json:"parent_id"`
+	PayAppMonth time.Time     `json:"pay_app_month"`
+}
+
+type GetChildrenWithPayAppsRow struct {
+	ID                    uuid.UUID `json:"id"`
+	ItemNumber            string    `json:"item_number"`
+	TotalQty              string    `json:"total_qty"`
+	UnitPrice             string    `json:"unit_price"`
+	PayAppQty             string    `json:"pay_app_qty"`
+	CumulativeQty         string    `json:"cumulative_qty"`
+	PreviousCumulativeQty string    `json:"previous_cumulative_qty"`
+}
+
+// Fetches children of a parent along with their pay_app data for a specific month
+func (q *Queries) GetChildrenWithPayApps(ctx context.Context, arg GetChildrenWithPayAppsParams) ([]GetChildrenWithPayAppsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChildrenWithPayApps, arg.ParentID, arg.PayAppMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChildrenWithPayAppsRow
+	for rows.Next() {
+		var i GetChildrenWithPayAppsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemNumber,
+			&i.TotalQty,
+			&i.UnitPrice,
+			&i.PayAppQty,
+			&i.CumulativeQty,
+			&i.PreviousCumulativeQty,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDirectChildren = `-- name: GetDirectChildren :many
+SELECT
+    id,
+    parent_id,
+    item_number,
+    description,
+    budget,
+    qty,
+    unit_price,
+    scheduled_value
+FROM job_items
+WHERE parent_id = $1
+`
+
+type GetDirectChildrenRow struct {
+	ID             uuid.UUID     `json:"id"`
+	ParentID       uuid.NullUUID `json:"parent_id"`
+	ItemNumber     string        `json:"item_number"`
+	Description    string        `json:"description"`
+	Budget         string        `json:"budget"`
+	Qty            string        `json:"qty"`
+	UnitPrice      string        `json:"unit_price"`
+	ScheduledValue string        `json:"scheduled_value"`
+}
+
+// Fetches direct children of a parent item (for validation)
+func (q *Queries) GetDirectChildren(ctx context.Context, parentID uuid.NullUUID) ([]GetDirectChildrenRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDirectChildren, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDirectChildrenRow
+	for rows.Next() {
+		var i GetDirectChildrenRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.ItemNumber,
+			&i.Description,
+			&i.Budget,
+			&i.Qty,
+			&i.UnitPrice,
+			&i.ScheduledValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getJobByNumber = `-- name: GetJobByNumber :one
 SELECT id, job_number, job_name FROM jobs WHERE job_number = $1
 `
@@ -37,6 +190,46 @@ func (q *Queries) GetJobByNumber(ctx context.Context, jobNumber string) (GetJobB
 	var i GetJobByNumberRow
 	err := row.Scan(&i.ID, &i.JobNumber, &i.JobName)
 	return i, err
+}
+
+const getJobCostLedgerByJob = `-- name: GetJobCostLedgerByJob :many
+SELECT id, job, phase, cat, transaction_type, transaction_date, amount, created_at
+FROM job_cost_ledger
+WHERE job = $1
+ORDER BY transaction_date
+`
+
+// Fetches all job cost ledger entries for a specific job
+func (q *Queries) GetJobCostLedgerByJob(ctx context.Context, job string) ([]JobCostLedger, error) {
+	rows, err := q.db.QueryContext(ctx, getJobCostLedgerByJob, job)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobCostLedger
+	for rows.Next() {
+		var i JobCostLedger
+		if err := rows.Scan(
+			&i.ID,
+			&i.Job,
+			&i.Phase,
+			&i.Cat,
+			&i.TransactionType,
+			&i.TransactionDate,
+			&i.Amount,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getJobTree = `-- name: GetJobTree :many
@@ -140,6 +333,271 @@ func (q *Queries) GetJobTree(ctx context.Context, jobID uuid.UUID) ([]GetJobTree
 		return nil, err
 	}
 	return items, nil
+}
+
+const getParentItems = `-- name: GetParentItems :many
+SELECT DISTINCT ji.id, ji.item_number, ji.description, ji.budget, ji.qty, ji.unit_price
+FROM job_items ji
+WHERE ji.job_id = $1
+  AND EXISTS (SELECT 1 FROM job_items child WHERE child.parent_id = ji.id)
+`
+
+type GetParentItemsRow struct {
+	ID          uuid.UUID `json:"id"`
+	ItemNumber  string    `json:"item_number"`
+	Description string    `json:"description"`
+	Budget      string    `json:"budget"`
+	Qty         string    `json:"qty"`
+	UnitPrice   string    `json:"unit_price"`
+}
+
+// Fetches all parent items (items that have children) for a job
+func (q *Queries) GetParentItems(ctx context.Context, jobID uuid.UUID) ([]GetParentItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getParentItems, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetParentItemsRow
+	for rows.Next() {
+		var i GetParentItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemNumber,
+			&i.Description,
+			&i.Budget,
+			&i.Qty,
+			&i.UnitPrice,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getParentPayAppForMonth = `-- name: GetParentPayAppForMonth :one
+SELECT
+    pa.qty,
+    pac.cumulative_qty::TEXT AS cumulative_qty,
+    pac.previous_cumulative_qty::TEXT AS previous_cumulative_qty,
+    ji.qty AS total_qty,
+    ji.unit_price
+FROM pay_applications pa
+JOIN job_items ji ON pa.job_item_id = ji.id
+LEFT JOIN pay_application_cumulative pac ON pa.job_item_id = pac.job_item_id AND pa.pay_app_month = pac.pay_app_month
+WHERE pa.job_item_id = $1 AND pa.pay_app_month = $2
+`
+
+type GetParentPayAppForMonthParams struct {
+	JobItemID   uuid.UUID `json:"job_item_id"`
+	PayAppMonth time.Time `json:"pay_app_month"`
+}
+
+type GetParentPayAppForMonthRow struct {
+	Qty                   string `json:"qty"`
+	CumulativeQty         string `json:"cumulative_qty"`
+	PreviousCumulativeQty string `json:"previous_cumulative_qty"`
+	TotalQty              string `json:"total_qty"`
+	UnitPrice             string `json:"unit_price"`
+}
+
+// Gets a parent's pay application data for a specific month
+func (q *Queries) GetParentPayAppForMonth(ctx context.Context, arg GetParentPayAppForMonthParams) (GetParentPayAppForMonthRow, error) {
+	row := q.db.QueryRowContext(ctx, getParentPayAppForMonth, arg.JobItemID, arg.PayAppMonth)
+	var i GetParentPayAppForMonthRow
+	err := row.Scan(
+		&i.Qty,
+		&i.CumulativeQty,
+		&i.PreviousCumulativeQty,
+		&i.TotalQty,
+		&i.UnitPrice,
+	)
+	return i, err
+}
+
+const getPayAppCumulative = `-- name: GetPayAppCumulative :many
+SELECT
+    job_item_id,
+    pay_app_month,
+    job_id,
+    parent_id,
+    this_month_qty,
+    stored_materials,
+    total_qty,
+    unit_price,
+    budget,
+    cumulative_qty,
+    previous_cumulative_qty,
+    remaining_qty,
+    percent_complete,
+    this_month_amount,
+    cumulative_amount,
+    previous_cumulative_amount
+FROM pay_application_cumulative
+WHERE job_id = $1 AND pay_app_month = $2
+`
+
+type GetPayAppCumulativeParams struct {
+	JobID       uuid.UUID `json:"job_id"`
+	PayAppMonth time.Time `json:"pay_app_month"`
+}
+
+// Fetches cumulative pay application data for a job and specific month
+func (q *Queries) GetPayAppCumulative(ctx context.Context, arg GetPayAppCumulativeParams) ([]PayApplicationCumulative, error) {
+	rows, err := q.db.QueryContext(ctx, getPayAppCumulative, arg.JobID, arg.PayAppMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PayApplicationCumulative
+	for rows.Next() {
+		var i PayApplicationCumulative
+		if err := rows.Scan(
+			&i.JobItemID,
+			&i.PayAppMonth,
+			&i.JobID,
+			&i.ParentID,
+			&i.ThisMonthQty,
+			&i.StoredMaterials,
+			&i.TotalQty,
+			&i.UnitPrice,
+			&i.Budget,
+			&i.CumulativeQty,
+			&i.PreviousCumulativeQty,
+			&i.RemainingQty,
+			&i.PercentComplete,
+			&i.ThisMonthAmount,
+			&i.CumulativeAmount,
+			&i.PreviousCumulativeAmount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPayAppMonthsForJob = `-- name: GetPayAppMonthsForJob :many
+SELECT DISTINCT pa.pay_app_month
+FROM pay_applications pa
+JOIN job_items ji ON pa.job_item_id = ji.id
+WHERE ji.job_id = $1
+ORDER BY pa.pay_app_month
+`
+
+// Gets all distinct months with pay applications for a job
+func (q *Queries) GetPayAppMonthsForJob(ctx context.Context, jobID uuid.UUID) ([]time.Time, error) {
+	rows, err := q.db.QueryContext(ctx, getPayAppMonthsForJob, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []time.Time
+	for rows.Next() {
+		var pay_app_month time.Time
+		if err := rows.Scan(&pay_app_month); err != nil {
+			return nil, err
+		}
+		items = append(items, pay_app_month)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertJobCostLedger = `-- name: InsertJobCostLedger :exec
+INSERT INTO job_cost_ledger (
+    id, job, phase, cat, transaction_type, transaction_date, amount
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+)
+ON CONFLICT (id) DO NOTHING
+`
+
+type InsertJobCostLedgerParams struct {
+	ID              string         `json:"id"`
+	Job             string         `json:"job"`
+	Phase           sql.NullString `json:"phase"`
+	Cat             sql.NullString `json:"cat"`
+	TransactionType sql.NullString `json:"transaction_type"`
+	TransactionDate sql.NullTime   `json:"transaction_date"`
+	Amount          string         `json:"amount"`
+}
+
+// Inserts a job cost ledger entry, skips if hash already exists
+func (q *Queries) InsertJobCostLedger(ctx context.Context, arg InsertJobCostLedgerParams) error {
+	_, err := q.db.ExecContext(ctx, insertJobCostLedger,
+		arg.ID,
+		arg.Job,
+		arg.Phase,
+		arg.Cat,
+		arg.TransactionType,
+		arg.TransactionDate,
+		arg.Amount,
+	)
+	return err
+}
+
+const insertPayApplicationIfNotExists = `-- name: InsertPayApplicationIfNotExists :exec
+INSERT INTO pay_applications (
+    job_item_id, pay_app_month, qty, stored_materials
+) VALUES (
+    $1, $2, $3, $4
+)
+ON CONFLICT (job_item_id, pay_app_month) DO NOTHING
+`
+
+type InsertPayApplicationIfNotExistsParams struct {
+	JobItemID       uuid.UUID `json:"job_item_id"`
+	PayAppMonth     time.Time `json:"pay_app_month"`
+	Qty             string    `json:"qty"`
+	StoredMaterials string    `json:"stored_materials"`
+}
+
+// Inserts pay application data only if no record exists for this item/month
+func (q *Queries) InsertPayApplicationIfNotExists(ctx context.Context, arg InsertPayApplicationIfNotExistsParams) error {
+	_, err := q.db.ExecContext(ctx, insertPayApplicationIfNotExists,
+		arg.JobItemID,
+		arg.PayAppMonth,
+		arg.Qty,
+		arg.StoredMaterials,
+	)
+	return err
+}
+
+const updateStoredMaterials = `-- name: UpdateStoredMaterials :exec
+UPDATE pay_applications
+SET stored_materials = $3, updated_at = NOW()
+WHERE job_item_id = $1 AND pay_app_month = $2
+`
+
+type UpdateStoredMaterialsParams struct {
+	JobItemID       uuid.UUID `json:"job_item_id"`
+	PayAppMonth     time.Time `json:"pay_app_month"`
+	StoredMaterials string    `json:"stored_materials"`
+}
+
+// Updates only the stored_materials field for an existing pay application
+func (q *Queries) UpdateStoredMaterials(ctx context.Context, arg UpdateStoredMaterialsParams) error {
+	_, err := q.db.ExecContext(ctx, updateStoredMaterials, arg.JobItemID, arg.PayAppMonth, arg.StoredMaterials)
+	return err
 }
 
 const upsertJob = `-- name: UpsertJob :one
@@ -251,7 +709,7 @@ INSERT INTO pay_applications (
     $1, $2, $3, $4
 )
 ON CONFLICT (job_item_id, pay_app_month)
-DO UPDATE SET 
+DO UPDATE SET
     qty = EXCLUDED.qty,
     stored_materials = EXCLUDED.stored_materials,
     updated_at = NOW()

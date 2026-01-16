@@ -17,6 +17,9 @@ DO UPDATE SET
     updated_at = NOW()
 RETURNING id;
 
+-- name: GetAllJobs :many
+SELECT id, job_number, job_name FROM jobs ORDER BY job_number;
+
 -- name: GetJobByNumber :one
 SELECT id, job_number, job_name FROM jobs WHERE job_number = $1;
 
@@ -51,10 +54,25 @@ INSERT INTO pay_applications (
     $1, $2, $3, $4
 )
 ON CONFLICT (job_item_id, pay_app_month)
-DO UPDATE SET 
+DO UPDATE SET
     qty = EXCLUDED.qty,
     stored_materials = EXCLUDED.stored_materials,
     updated_at = NOW();
+
+-- name: InsertPayApplicationIfNotExists :exec
+-- Inserts pay application data only if no record exists for this item/month
+INSERT INTO pay_applications (
+    job_item_id, pay_app_month, qty, stored_materials
+) VALUES (
+    $1, $2, $3, $4
+)
+ON CONFLICT (job_item_id, pay_app_month) DO NOTHING;
+
+-- name: UpdateStoredMaterials :exec
+-- Updates only the stored_materials field for an existing pay application
+UPDATE pay_applications
+SET stored_materials = $3, updated_at = NOW()
+WHERE job_item_id = $1 AND pay_app_month = $2;
 
 -- name: GetJobTree :many
 WITH RECURSIVE job_tree AS (
@@ -102,3 +120,98 @@ WITH RECURSIVE job_tree AS (
 -- 3. Sort by the array path to recreate Excel structure
 SELECT * FROM job_tree
 ORDER BY path_order;
+
+-- name: GetPayAppCumulative :many
+-- Fetches cumulative pay application data for a job and specific month
+SELECT
+    job_item_id,
+    pay_app_month,
+    job_id,
+    parent_id,
+    this_month_qty,
+    stored_materials,
+    total_qty,
+    unit_price,
+    budget,
+    cumulative_qty,
+    previous_cumulative_qty,
+    remaining_qty,
+    percent_complete,
+    this_month_amount,
+    cumulative_amount,
+    previous_cumulative_amount
+FROM pay_application_cumulative
+WHERE job_id = $1 AND pay_app_month = $2;
+
+-- name: GetDirectChildren :many
+-- Fetches direct children of a parent item (for validation)
+SELECT
+    id,
+    parent_id,
+    item_number,
+    description,
+    budget,
+    qty,
+    unit_price,
+    scheduled_value
+FROM job_items
+WHERE parent_id = $1;
+
+-- name: GetParentItems :many
+-- Fetches all parent items (items that have children) for a job
+SELECT DISTINCT ji.id, ji.item_number, ji.description, ji.budget, ji.qty, ji.unit_price
+FROM job_items ji
+WHERE ji.job_id = $1
+  AND EXISTS (SELECT 1 FROM job_items child WHERE child.parent_id = ji.id);
+
+-- name: GetChildrenWithPayApps :many
+-- Fetches children of a parent along with their pay_app data for a specific month
+SELECT
+    ji.id,
+    ji.item_number,
+    ji.qty AS total_qty,
+    ji.unit_price,
+    COALESCE(pa.qty, '0')::TEXT AS pay_app_qty,
+    COALESCE(pac.cumulative_qty, '0')::TEXT AS cumulative_qty,
+    COALESCE(pac.previous_cumulative_qty, '0')::TEXT AS previous_cumulative_qty
+FROM job_items ji
+LEFT JOIN pay_applications pa ON ji.id = pa.job_item_id AND pa.pay_app_month = $2
+LEFT JOIN pay_application_cumulative pac ON ji.id = pac.job_item_id AND pac.pay_app_month = $2
+WHERE ji.parent_id = $1;
+
+-- name: GetPayAppMonthsForJob :many
+-- Gets all distinct months with pay applications for a job
+SELECT DISTINCT pa.pay_app_month
+FROM pay_applications pa
+JOIN job_items ji ON pa.job_item_id = ji.id
+WHERE ji.job_id = $1
+ORDER BY pa.pay_app_month;
+
+-- name: GetParentPayAppForMonth :one
+-- Gets a parent's pay application data for a specific month
+SELECT
+    pa.qty,
+    pac.cumulative_qty::TEXT AS cumulative_qty,
+    pac.previous_cumulative_qty::TEXT AS previous_cumulative_qty,
+    ji.qty AS total_qty,
+    ji.unit_price
+FROM pay_applications pa
+JOIN job_items ji ON pa.job_item_id = ji.id
+LEFT JOIN pay_application_cumulative pac ON pa.job_item_id = pac.job_item_id AND pa.pay_app_month = pac.pay_app_month
+WHERE pa.job_item_id = $1 AND pa.pay_app_month = $2;
+
+-- name: InsertJobCostLedger :exec
+-- Inserts a job cost ledger entry, skips if hash already exists
+INSERT INTO job_cost_ledger (
+    id, job, phase, cat, transaction_type, transaction_date, amount
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- name: GetJobCostLedgerByJob :many
+-- Fetches all job cost ledger entries for a specific job
+SELECT id, job, phase, cat, transaction_type, transaction_date, amount, created_at
+FROM job_cost_ledger
+WHERE job = $1
+ORDER BY transaction_date;

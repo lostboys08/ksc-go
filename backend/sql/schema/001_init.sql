@@ -23,7 +23,7 @@ CREATE TABLE job_items (
   job_id UUID NOT NULL REFERENCES jobs(id),
   parent_id UUID REFERENCES job_items(id),
   sort_order INT NOT NULL,
-  item_number VARCHAR(20) NOT NULL,
+  item_number VARCHAR(50) NOT NULL,
   description TEXT NOT NULL,
   scheduled_value NUMERIC NOT NULL DEFAULT 0,
   job_cost_id VARCHAR(20),
@@ -31,7 +31,8 @@ CREATE TABLE job_items (
   qty NUMERIC NOT NULL DEFAULT 0,
   unit TEXT,
   unit_price NUMERIC NOT NULL DEFAULT 0,
-  
+
+  updated_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(job_id, item_number)
 );
 
