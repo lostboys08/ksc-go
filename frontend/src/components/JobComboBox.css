@@ -1,0 +1,78 @@
+.job-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.job-combobox-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background-color: #fff;
+  transition: border-color 0.2s ease;
+}
+
+.job-combobox-input:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.job-combobox-input::placeholder {
+  color: #999;
+}
+
+.job-combobox-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.job-combobox-option {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.job-combobox-option:last-child {
+  border-bottom: none;
+}
+
+.job-combobox-option:hover {
+  background-color: #f5f5f5;
+}
+
+.job-combobox-option .job-number {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.job-combobox-option .job-name {
+  color: #666;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.job-combobox-message {
+  padding: 12px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+}
+
+.job-combobox-message.error {
+  color: #d32f2f;
+}

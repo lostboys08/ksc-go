@@ -1,0 +1,71 @@
+.cost-chart-container {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.cost-chart-container h3 {
+  margin: 0 0 16px 0;
+  color: #1f2937;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  background: #f9fafb;
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.chart-placeholder.error {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.custom-tooltip {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.custom-tooltip p {
+  margin: 4px 0;
+  font-size: 0.875rem;
+}
+
+.custom-tooltip .tooltip-label {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.custom-tooltip .tooltip-cost {
+  color: #dc2626;
+}
+
+.custom-tooltip .tooltip-revenue {
+  color: #2563eb;
+}
+
+.custom-tooltip .tooltip-profit {
+  color: #059669;
+}
+
+.custom-tooltip .tooltip-divider {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 8px 0;
+}
+
+.custom-tooltip .tooltip-markup,
+.custom-tooltip .tooltip-margin {
+  color: #6b7280;
+}
