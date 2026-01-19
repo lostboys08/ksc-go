@@ -14,12 +14,22 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// SheetResult contains the result of processing a single sheet.
+type SheetResult struct {
+	SheetName     string `json:"sheetName"`
+	RowsProcessed int    `json:"rowsProcessed"`
+	RowsInserted  int    `json:"rowsInserted"`
+	RowsSkipped   int    `json:"rowsSkipped"`
+	Error         string `json:"error,omitempty"`
+}
+
 // UploadResult contains the result of a file upload operation.
 type UploadResult struct {
-	Success      bool   `json:"success"`
-	Message      string `json:"message"`
-	Filename     string `json:"filename,omitempty"`
-	RowsProcessed int   `json:"rowsProcessed,omitempty"`
+	Success       bool          `json:"success"`
+	Message       string        `json:"message"`
+	Filename      string        `json:"filename,omitempty"`
+	RowsProcessed int           `json:"rowsProcessed,omitempty"`
+	SheetResults  []SheetResult `json:"sheetResults,omitempty"`
 }
 
 // ImportPayApplication imports a pay application Excel file for a specific job and month.
@@ -42,20 +52,48 @@ func ImportPayApplication(ctx context.Context, f *excelize.File, q *database.Que
 	}, nil
 }
 
-// ImportCostLedger imports a cost ledger Excel file.
+// ImportCostLedger imports a cost ledger Excel file, processing all sheets.
 func ImportCostLedger(ctx context.Context, f *excelize.File, q *database.Queries) (*UploadResult, error) {
-	sheetName := f.GetSheetName(0)
+	sheets := f.GetSheetList()
+	if len(sheets) == 0 {
+		return nil, fmt.Errorf("Excel file has no sheets")
+	}
+
+	var sheetResults []SheetResult
+	totalInserted := 0
+	totalSkipped := 0
+
+	for _, sheetName := range sheets {
+		result := processSheet(ctx, f, q, sheetName)
+		sheetResults = append(sheetResults, result)
+		totalInserted += result.RowsInserted
+		totalSkipped += result.RowsSkipped
+	}
+
+	return &UploadResult{
+		Success:       true,
+		Message:       fmt.Sprintf("Processed %d sheets: %d inserted, %d skipped", len(sheets), totalInserted, totalSkipped),
+		RowsProcessed: totalInserted,
+		SheetResults:  sheetResults,
+	}, nil
+}
+
+// processSheet processes a single sheet from the cost ledger workbook.
+func processSheet(ctx context.Context, f *excelize.File, q *database.Queries, sheetName string) SheetResult {
+	result := SheetResult{SheetName: sheetName}
+
 	rows, err := f.GetRows(sheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get rows: %w", err)
+		result.Error = fmt.Sprintf("failed to get rows: %v", err)
+		return result
 	}
 
 	if len(rows) < 2 {
-		return nil, fmt.Errorf("Excel file has no data rows")
+		result.Error = "sheet has no data rows"
+		return result
 	}
 
-	inserted := 0
-	skipped := 0
+	result.RowsProcessed = len(rows) - 1 // exclude header
 
 	for i, row := range rows {
 		if i == 0 {
@@ -63,7 +101,7 @@ func ImportCostLedger(ctx context.Context, f *excelize.File, q *database.Queries
 		}
 
 		if len(row) < 7 {
-			skipped++
+			result.RowsSkipped++
 			continue
 		}
 
@@ -92,7 +130,7 @@ func ImportCostLedger(ctx context.Context, f *excelize.File, q *database.Queries
 		}
 
 		if amount.IsZero() {
-			skipped++
+			result.RowsSkipped++
 			continue
 		}
 
@@ -111,17 +149,13 @@ func ImportCostLedger(ctx context.Context, f *excelize.File, q *database.Queries
 
 		err := q.InsertJobCostLedger(ctx, params)
 		if err != nil {
-			skipped++
+			result.RowsSkipped++
 			continue
 		}
-		inserted++
+		result.RowsInserted++
 	}
 
-	return &UploadResult{
-		Success:       true,
-		Message:       fmt.Sprintf("Imported %d records, skipped %d", inserted, skipped),
-		RowsProcessed: inserted,
-	}, nil
+	return result
 }
 
 func getOrCreateJob(ctx context.Context, q *database.Queries, jobNumber, jobName string) (uuid.UUID, error) {
