@@ -10,6 +10,11 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 100;
 }
 
 .sidebar-header {
@@ -35,6 +40,8 @@
   flex-direction: column;
   padding: 16px 12px;
   gap: 4px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .nav-item {
@@ -61,10 +68,45 @@
   color: white;
 }
 
+/* Navigation Sections */
+.nav-section {
+  margin-bottom: 16px;
+}
+
+.nav-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #231f20;
+  padding: 8px 16px 4px;
+  margin-bottom: 4px;
+}
+
+.nav-subsection {
+  margin-bottom: 8px;
+}
+
+.nav-subsection-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.5);
+  padding: 4px 16px 2px 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.nav-subsection .nav-item {
+  padding-left: 24px;
+  font-size: 13px;
+}
+
 .main-content {
   flex: 1;
   padding: 40px 20px;
   background: #f5f5f5;
+  margin-left: 220px;
+  min-height: 100vh;
 }
 
 .coming-soon {
@@ -72,6 +114,14 @@
   padding: 60px 20px;
   color: #666;
   font-size: 18px;
+}
+
+.coming-soon-text {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 16px;
+  font-style: italic;
 }
 
 .header {

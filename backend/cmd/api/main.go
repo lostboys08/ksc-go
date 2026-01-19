@@ -53,6 +53,8 @@ func main() {
 	http.HandleFunc("/api/upload", handleUpload(queries))
 	http.HandleFunc("/api/jobs", handleGetJobs(queries))
 	http.HandleFunc("/api/jobs/cost-over-time", handleGetCostOverTime(queries))
+	http.HandleFunc("/api/jobs/cost-performance-index", handleGetCostPerformanceIndex(queries))
+	http.HandleFunc("/api/jobs/over-budget-phases", handleGetOverBudgetPhases(queries))
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -211,6 +213,102 @@ func handleGetCostOverTime(queries *database.Queries) http.HandlerFunc {
 				PayAppTotal:      row.PayAppTotal,
 				CumulativeCost:   row.CumulativeCost,
 				CumulativePayApp: row.CumulativePayApp,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
+type CPIResponse struct {
+	Month             string `json:"month"`
+	Budget            int64  `json:"budget"`
+	TotalScheduledQty string `json:"total_scheduled_qty"`
+	CumulativeQty     string `json:"cumulative_qty"`
+	PercentComplete   string `json:"percent_complete"`
+	EarnedValue       int64  `json:"earned_value"`
+	ActualCost        int64  `json:"actual_cost"`
+	CPI               string `json:"cpi"`
+}
+
+func handleGetCostPerformanceIndex(queries *database.Queries) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		jobNumber := r.URL.Query().Get("job")
+		if jobNumber == "" {
+			http.Error(w, "job query parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		rows, err := queries.GetCostPerformanceIndex(context.Background(), jobNumber)
+		if err != nil {
+			http.Error(w, "Failed to fetch CPI data: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response := make([]CPIResponse, 0, len(rows))
+		for _, row := range rows {
+			response = append(response, CPIResponse{
+				Month:             row.Month.Format("2006-01"),
+				Budget:            row.Budget,
+				TotalScheduledQty: row.TotalScheduledQty,
+				CumulativeQty:     row.CumulativeQty,
+				PercentComplete:   row.PercentComplete,
+				EarnedValue:       row.EarnedValue,
+				ActualCost:        row.ActualCost,
+				CPI:               row.Cpi,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
+type OverBudgetPhaseResponse struct {
+	Phase       string `json:"phase"`
+	Description string `json:"description"`
+	Budget      int64  `json:"budget"`
+	ActualCost  int64  `json:"actual_cost"`
+	Variance    int64  `json:"variance"`
+}
+
+func handleGetOverBudgetPhases(queries *database.Queries) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		jobNumber := r.URL.Query().Get("job")
+		if jobNumber == "" {
+			http.Error(w, "job query parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		rows, err := queries.GetOverBudgetPhases(context.Background(), jobNumber)
+		if err != nil {
+			http.Error(w, "Failed to fetch over-budget phases: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response := make([]OverBudgetPhaseResponse, 0, len(rows))
+		for _, row := range rows {
+			phase := ""
+			if row.Phase.Valid {
+				phase = row.Phase.String
+			}
+			response = append(response, OverBudgetPhaseResponse{
+				Phase:       phase,
+				Description: string(row.Description),
+				Budget:      row.Budget,
+				ActualCost:  row.ActualCost,
+				Variance:    row.Variance,
 			})
 		}
 

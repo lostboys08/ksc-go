@@ -260,3 +260,123 @@ LEFT JOIN LATERAL (
     WHERE mc.month <= mpa.month
 ) cc ON true
 ORDER BY mpa.month;
+
+-- name: GetCostPerformanceIndex :many
+-- Fetches monthly CPI data: Earned Value / Actual Costs
+-- Earned Value = (cumulative qty / total qty) * original budget
+-- Falls back to sum of scheduled_value if contract_value is not set
+WITH job_info AS (
+    SELECT id, job_number, contract_value
+    FROM jobs
+    WHERE job_number = $1
+),
+total_scheduled AS (
+    -- Sum of all scheduled quantities and calculated values (only leaf items with qty > 0)
+    SELECT
+        SUM(ji.qty) AS total_qty,
+        SUM(ji.qty * ji.unit_price) AS total_contract_value
+    FROM job_items ji
+    JOIN job_info j ON ji.job_id = j.id
+    WHERE ji.qty > 0
+),
+budget_value AS (
+    -- Use contract_value if set, otherwise fall back to sum of qty * unit_price
+    SELECT COALESCE(j.contract_value, ts.total_contract_value, 0) AS budget
+    FROM job_info j
+    CROSS JOIN total_scheduled ts
+),
+monthly_cumulative_qty AS (
+    -- Cumulative quantity billed per month
+    SELECT
+        pa.pay_app_month AS month,
+        SUM(pa.qty) AS month_qty,
+        SUM(SUM(pa.qty)) OVER (ORDER BY pa.pay_app_month) AS cumulative_qty
+    FROM pay_applications pa
+    JOIN job_items ji ON pa.job_item_id = ji.id
+    JOIN job_info j ON ji.job_id = j.id
+    GROUP BY pa.pay_app_month
+),
+monthly_costs AS (
+    SELECT
+        DATE_TRUNC('month', transaction_date)::DATE AS month,
+        SUM(amount) AS cost_total
+    FROM job_cost_ledger
+    WHERE job = $1
+      AND transaction_type IN ('AP cost', 'JC cost', 'PR cost')
+      AND transaction_date IS NOT NULL
+    GROUP BY DATE_TRUNC('month', transaction_date)
+)
+SELECT
+    mcq.month,
+    COALESCE(bv.budget, 0)::BIGINT AS budget,
+    COALESCE(ts.total_qty, 0)::TEXT AS total_scheduled_qty,
+    mcq.cumulative_qty::TEXT AS cumulative_qty,
+    CASE
+        WHEN COALESCE(ts.total_qty, 0) > 0
+        THEN ROUND((mcq.cumulative_qty / ts.total_qty) * 100, 2)::TEXT
+        ELSE '0'
+    END AS percent_complete,
+    CASE
+        WHEN COALESCE(ts.total_qty, 0) > 0 AND COALESCE(bv.budget, 0) > 0
+        THEN ROUND((mcq.cumulative_qty / ts.total_qty) * bv.budget, 2)::BIGINT
+        ELSE 0::BIGINT
+    END AS earned_value,
+    COALESCE(SUM(mc.cost_total) OVER (ORDER BY mcq.month), 0)::BIGINT AS actual_cost,
+    CASE
+        WHEN COALESCE(SUM(mc.cost_total) OVER (ORDER BY mcq.month), 0) > 0
+             AND COALESCE(ts.total_qty, 0) > 0
+             AND COALESCE(bv.budget, 0) > 0
+        THEN ROUND(
+            ((mcq.cumulative_qty / ts.total_qty) * bv.budget) /
+            SUM(mc.cost_total) OVER (ORDER BY mcq.month),
+            2
+        )::TEXT
+        ELSE '0'
+    END AS cpi
+FROM monthly_cumulative_qty mcq
+CROSS JOIN budget_value bv
+CROSS JOIN total_scheduled ts
+LEFT JOIN monthly_costs mc ON mc.month = mcq.month
+ORDER BY mcq.month;
+
+-- name: GetOverBudgetPhases :many
+-- Fetches phase codes where actual costs exceed budget
+-- Uses "Original estimate" from job_cost_ledger as the budget source
+WITH phase_costs AS (
+    SELECT
+        jcl.phase,
+        SUM(jcl.amount) AS actual_cost
+    FROM job_cost_ledger jcl
+    WHERE jcl.job = $1
+      AND jcl.transaction_type IN ('AP cost', 'JC cost', 'PR cost')
+    GROUP BY jcl.phase
+),
+phase_budgets AS (
+    SELECT
+        jcl.phase,
+        SUM(jcl.amount) AS budget
+    FROM job_cost_ledger jcl
+    WHERE jcl.job = $1
+      AND jcl.transaction_type = 'Original estimate'
+    GROUP BY jcl.phase
+),
+phase_descriptions AS (
+    SELECT
+        ji.job_cost_id AS phase,
+        STRING_AGG(DISTINCT ji.description, ', ') AS descriptions
+    FROM job_items ji
+    WHERE ji.job_id = (SELECT j.id FROM jobs j WHERE j.job_number = $1)
+      AND ji.job_cost_id IS NOT NULL
+    GROUP BY ji.job_cost_id
+)
+SELECT
+    COALESCE(pb.phase, pc.phase) AS phase,
+    COALESCE(pd.descriptions, '') AS description,
+    COALESCE(pb.budget, 0)::BIGINT AS budget,
+    COALESCE(pc.actual_cost, 0)::BIGINT AS actual_cost,
+    (COALESCE(pc.actual_cost, 0) - COALESCE(pb.budget, 0))::BIGINT AS variance
+FROM phase_budgets pb
+FULL OUTER JOIN phase_costs pc ON pb.phase = pc.phase
+LEFT JOIN phase_descriptions pd ON COALESCE(pb.phase, pc.phase) = pd.phase
+WHERE COALESCE(pc.actual_cost, 0) > COALESCE(pb.budget, 0)
+ORDER BY (COALESCE(pc.actual_cost, 0) - COALESCE(pb.budget, 0)) DESC;
