@@ -63,19 +63,12 @@ type parentItemInfo struct {
 }
 
 // ParsePayApp parses an Excel file and populates the database.
-// It reads the Detail sheet for job items and time series QTY data,
-// then reads the SOV sheet to get stored materials for parent items.
+// It reads the SOV sheet (first page) for job items and pay application data.
 func ParsePayApp(ctx context.Context, f *excelize.File, q *database.Queries, jobID uuid.UUID, targetDate time.Time) error {
 	targetMonth := time.Date(targetDate.Year(), targetDate.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	// Parse Detail sheet - returns parent items for SOV matching
-	parentItems, err := parseDetailSheet(ctx, f, q, jobID, targetMonth)
-	if err != nil {
-		return fmt.Errorf("parsing Detail sheet: %w", err)
-	}
-
-	// Parse SOV sheet - updates stored materials for parent items
-	err = parseSOVSheet(ctx, f, q, targetMonth, parentItems)
+	// Parse SOV sheet only
+	err := parseSOVSheet(ctx, f, q, jobID, targetMonth)
 	if err != nil {
 		return fmt.Errorf("parsing SOV sheet: %w", err)
 	}
@@ -240,12 +233,12 @@ func parseDetailSheet(ctx context.Context, f *excelize.File, q *database.Queries
 	return parentItems, nil
 }
 
-// parseSOVSheet parses the SOV sheet to get pay application data for parent items.
+// parseSOVSheet parses the SOV sheet to create job items and pay application data.
 // SOV has: ITEM, DESCRIPTION, SCHEDULED VALUE, PREVIOUS, THIS PERIOD, MATERIALS ON SITE, etc.
-func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, targetMonth time.Time, parentItems []parentItemInfo) error {
+func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, jobID uuid.UUID, targetMonth time.Time) error {
 	sheetName := findSOVSheet(f)
 	if sheetName == "" {
-		return nil
+		return fmt.Errorf("could not find SOV sheet")
 	}
 
 	mcMap, err := buildMergedCellMap(f, sheetName)
@@ -262,6 +255,7 @@ func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, t
 	headerRow := -1
 	colItem := -1
 	colDesc := -1
+	colScheduledValue := -1
 	colThisPeriod := -1
 	colMaterials := -1
 
@@ -281,6 +275,8 @@ func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, t
 				headerRow = rowIdx
 			} else if strings.Contains(cellLower, "description") && colDesc == -1 {
 				colDesc = colIdx
+			} else if strings.Contains(cellLower, "scheduled") && colScheduledValue == -1 {
+				colScheduledValue = colIdx
 			} else if strings.Contains(cellLower, "this period") && colThisPeriod == -1 {
 				colThisPeriod = colIdx
 			} else if strings.Contains(cellLower, "materials") && colMaterials == -1 {
@@ -288,13 +284,13 @@ func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, t
 			}
 		}
 
-		if colItem >= 0 && colDesc >= 0 && colMaterials >= 0 {
+		if colItem >= 0 && colDesc >= 0 {
 			break
 		}
 	}
 
 	if headerRow < 0 {
-		return nil
+		return fmt.Errorf("could not find header row in SOV sheet")
 	}
 
 	// Also check sub-header row for "THIS PERIOD"
@@ -307,13 +303,6 @@ func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, t
 				break
 			}
 		}
-	}
-
-	// Build parent item lookup map
-	parentMap := make(map[string]uuid.UUID)
-	for _, p := range parentItems {
-		key := p.ItemNumber + "|" + strings.ToLower(strings.TrimSpace(p.Description))
-		parentMap[key] = p.JobItemID
 	}
 
 	// Process SOV data rows
@@ -332,14 +321,35 @@ func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, t
 			continue
 		}
 
-		// Look up parent item
-		key := itemNum + "|" + strings.ToLower(strings.TrimSpace(description))
-		jobItemID, found := parentMap[key]
-		if !found {
-			continue
+		// Parse scheduled value
+		scheduledValue := "0"
+		if colScheduledValue >= 0 {
+			val, err := cleanNumeric(getColValue(row, colScheduledValue))
+			if err != nil {
+				return fmt.Errorf("SOV row %d scheduled value: %w", rowIdx+1, err)
+			}
+			scheduledValue = val
 		}
 
-		// Get values
+		// Upsert job item from SOV data
+		jobItemID, err := q.UpsertJobItem(ctx, database.UpsertJobItemParams{
+			JobID:          jobID,
+			ParentID:       uuid.NullUUID{}, // SOV items are top-level
+			SortOrder:      int32(rowIdx),
+			ItemNumber:     itemNum,
+			Description:    description,
+			ScheduledValue: scheduledValue,
+			JobCostID:      sql.NullString{},
+			Budget:         "0",
+			Qty:            "0",
+			Unit:           sql.NullString{},
+			UnitPrice:      "0",
+		})
+		if err != nil {
+			return fmt.Errorf("upserting job item at row %d: %w", rowIdx+1, err)
+		}
+
+		// Get pay app values
 		thisPeriod := "0"
 		if colThisPeriod >= 0 {
 			val, err := cleanNumeric(getColValue(row, colThisPeriod))
@@ -357,8 +367,8 @@ func parseSOVSheet(ctx context.Context, f *excelize.File, q *database.Queries, t
 			materials = val
 		}
 
-		// Upsert pay application for parent item with SOV data
-		err := q.UpsertPayApplication(ctx, database.UpsertPayApplicationParams{
+		// Upsert pay application
+		err = q.UpsertPayApplication(ctx, database.UpsertPayApplicationParams{
 			JobItemID:       jobItemID,
 			PayAppMonth:     targetMonth,
 			Qty:             thisPeriod,
