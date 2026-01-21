@@ -6,7 +6,7 @@ endif
 # Database URL for connecting apps
 DB_URL=postgres://ksc:password@localhost:5432/ksc_data?sslmode=disable
 
-.PHONY: up down sqlc run-back run-front clean deploy migrate migrate-status migrate-down install-goose
+.PHONY: up down sqlc run-back run-front clean deploy migrate migrate-status migrate-down
 
 # 🐳 Docker Controls
 up:
@@ -22,28 +22,22 @@ reset-db:
 	docker compose up -d db
 	@echo "Waiting for database to be ready..."
 	@sleep 3
-	goose -dir $(MIGRATIONS_DIR) postgres "$(DB_URL)" up
+	docker compose run --rm migrate up
 	@echo "Database has been wiped and re-initialized with migrations."
 
 # 🛠️ Code Generation
 sqlc:
 	cd backend && sqlc generate
 
-# 🗃️ Database Migrations (using goose)
-# Install goose first: make install-goose
-MIGRATIONS_DIR=backend/sql/schema
-
-install-goose:
-	go install github.com/pressly/goose/v3/cmd/goose@latest
-
+# 🗃️ Database Migrations (using goose in docker)
 migrate:
-	goose -dir $(MIGRATIONS_DIR) postgres "$(DB_URL)" up
+	docker compose run --rm migrate up
 
 migrate-status:
-	goose -dir $(MIGRATIONS_DIR) postgres "$(DB_URL)" status
+	docker compose run --rm migrate status
 
 migrate-down:
-	goose -dir $(MIGRATIONS_DIR) postgres "$(DB_URL)" down
+	docker compose run --rm migrate down
 
 # 🚀 Run the Apps
 run-back:
@@ -68,8 +62,10 @@ import-ledger:
 deploy:
 	@echo "Pulling latest changes..."
 	git pull
+	@echo "Ensuring database is running..."
+	docker compose up -d db
 	@echo "Running database migrations..."
-	goose -dir $(MIGRATIONS_DIR) postgres "$(DB_URL)" up
+	docker compose run --rm migrate up
 	@echo "Stopping application containers..."
 	docker compose --profile prod down
 	@echo "Rebuilding and starting services..."

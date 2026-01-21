@@ -43,5 +43,18 @@ services:
     profiles:
       - prod
 
+  migrate:
+    image: ghcr.io/pressly/goose:latest
+    depends_on:
+      - db
+    volumes:
+      - ./backend/sql/schema:/migrations
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://ksc:password@db:5432/ksc_data?sslmode=disable
+      GOOSE_MIGRATION_DIR: /migrations
+    profiles:
+      - tools
+
 volumes:
   pgdata:
