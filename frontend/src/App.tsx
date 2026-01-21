@@ -44,7 +44,7 @@ function App() {
             <div className="nav-section-title">Project Level</div>
 
             <div className="nav-subsection">
-              <div className="nav-subsection-title">Financials</div>
+              <div className="nav-subsection-title">------ Financials ------</div>
               <button
                 className={`nav-item ${activeView === 'budget' ? 'active' : ''}`}
                 onClick={() => setActiveView('budget')}
@@ -66,7 +66,7 @@ function App() {
             </div>
 
             <div className="nav-subsection">
-              <div className="nav-subsection-title">Controls</div>
+              <div className="nav-subsection-title">------ Controls ------</div>
               <button
                 className={`nav-item ${activeView === 'performance' ? 'active' : ''}`}
                 onClick={() => setActiveView('performance')}
@@ -83,13 +83,7 @@ function App() {
                 className={`nav-item ${activeView === 'change-management' ? 'active' : ''}`}
                 onClick={() => setActiveView('change-management')}
               >
-                Change Management
-              </button>
-              <button
-                className={`nav-item ${activeView === 'risk-register' ? 'active' : ''}`}
-                onClick={() => setActiveView('risk-register')}
-              >
-                Risk Register
+                Change Orders
               </button>
             </div>
 
