@@ -217,49 +217,45 @@ WHERE job = $1
 ORDER BY transaction_date;
 
 -- name: GetMonthlyPerformance :many
--- Fetches monthly cost and pay application totals for a job
--- Only includes months that have pay applications with non-zero totals
+-- Fetches monthly cost and billed totals for a job from job_cost_ledger
+-- Costs = AP cost, JC cost, PR cost; Billed = work billed
 WITH monthly_costs AS (
     SELECT
-        DATE_TRUNC('month', transaction_date)::DATE AS month,
-        SUM(amount) AS cost_total
-    FROM job_cost_ledger
-    WHERE job = $1
-      AND transaction_type IN ('AP cost', 'JC cost', 'PR cost')
-      AND transaction_date IS NOT NULL
-    GROUP BY DATE_TRUNC('month', transaction_date)
+        DATE_TRUNC('month', jcl.transaction_date)::DATE AS month,
+        SUM(jcl.amount) AS cost_total
+    FROM job_cost_ledger jcl
+    WHERE jcl.job = $1
+      AND jcl.transaction_type IN ('AP cost', 'JC cost', 'PR cost')
+      AND jcl.transaction_date IS NOT NULL
+    GROUP BY DATE_TRUNC('month', jcl.transaction_date)
 ),
-monthly_pay_apps AS (
+monthly_billed AS (
     SELECT
-        pa.pay_app_month AS month,
-        SUM(pa.qty * ji.unit_price) AS pay_app_total
-    FROM pay_applications pa
-    JOIN job_items ji ON pa.job_item_id = ji.id
-    JOIN jobs j ON ji.job_id = j.id
-    WHERE j.job_number = $1
-    GROUP BY pa.pay_app_month
-    HAVING SUM(pa.qty * ji.unit_price) > 0
-),
-cumulative_costs AS (
-    SELECT
-        month,
-        cost_total,
-        SUM(cost_total) OVER (ORDER BY month) AS running_cost
-    FROM monthly_costs
+        DATE_TRUNC('month', jcl.transaction_date)::DATE AS month,
+        SUM(jcl.amount) AS billed_total
+    FROM job_cost_ledger jcl
+    WHERE jcl.job = $1
+      AND jcl.transaction_type = 'work billed'
+      AND jcl.transaction_date IS NOT NULL
+    GROUP BY DATE_TRUNC('month', jcl.transaction_date)
+    HAVING SUM(jcl.amount) > 0
 )
 SELECT
-    mpa.month,
-    CAST(COALESCE(cc.running_cost, 0) AS BIGINT) AS cost_total,
-    CAST(mpa.pay_app_total AS BIGINT) AS pay_app_total,
-    CAST(COALESCE(cc.running_cost, 0) AS BIGINT) AS cumulative_cost,
-    CAST(SUM(mpa.pay_app_total) OVER (ORDER BY mpa.month) AS BIGINT) AS cumulative_pay_app
-FROM monthly_pay_apps mpa
-LEFT JOIN LATERAL (
-    SELECT SUM(cost_total) AS running_cost
-    FROM monthly_costs mc
-    WHERE mc.month <= mpa.month
-) cc ON true
-ORDER BY mpa.month;
+    mb.month,
+    COALESCE((
+        SELECT SUM(mc.cost_total)
+        FROM monthly_costs mc
+        WHERE mc.month <= mb.month
+    ), 0)::BIGINT AS cost_total,
+    mb.billed_total::BIGINT AS pay_app_total,
+    COALESCE((
+        SELECT SUM(mc.cost_total)
+        FROM monthly_costs mc
+        WHERE mc.month <= mb.month
+    ), 0)::BIGINT AS cumulative_cost,
+    SUM(mb.billed_total) OVER (ORDER BY mb.month)::BIGINT AS cumulative_pay_app
+FROM monthly_billed mb
+ORDER BY mb.month;
 
 -- name: GetCostPerformanceIndex :many
 -- Fetches monthly CPI data: Earned Value / Actual Costs
