@@ -1,0 +1,103 @@
+.pay-app-container {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pay-app-container h3 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.pay-app-subtitle {
+  margin: 0 0 16px 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.pay-app-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: #f9fafb;
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.pay-app-placeholder.error {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.pay-app-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  background: #f9fafb;
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.pay-app-table-wrapper {
+  overflow-x: auto;
+}
+
+.pay-app-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.pay-app-table th,
+.pay-app-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.pay-app-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.pay-app-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.pay-app-table .text-right {
+  text-align: right;
+}
+
+.pay-app-table tfoot td {
+  border-bottom: none;
+  border-top: 2px solid #e5e7eb;
+  padding-top: 12px;
+}
+
+.month-cell {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.cumulative {
+  color: #6b7280;
+}
+
+.total-label {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.total-value {
+  font-weight: 600;
+  color: #059669;
+}

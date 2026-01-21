@@ -4,6 +4,7 @@ import { JobComboBox } from './components/JobComboBox'
 import { CostOverTimeChart } from './components/CostOverTimeChart'
 import { CPIChart } from './components/CPIChart'
 import { OverBudgetPhases } from './components/OverBudgetPhases'
+import { PayAppMonthlyList } from './components/PayAppMonthlyList'
 import './App.css'
 
 type ActiveView =
@@ -29,6 +30,7 @@ function App() {
   const [jobNumber, setJobNumber] = useState('')
   const [date, setDate] = useState('')
   const [reportJobNumber, setReportJobNumber] = useState('')
+  const [primeContractJobNumber, setPrimeContractJobNumber] = useState('')
 
   return (
     <div className="app-layout">
@@ -166,7 +168,14 @@ function App() {
               <p>Payment applications and contract management</p>
             </header>
             <main className="main">
-              <p className="coming-soon-text">Coming Soon</p>
+              <div className="form-group">
+                <label htmlFor="primeContractJob">Select Project</label>
+                <JobComboBox
+                  value={primeContractJobNumber}
+                  onChange={setPrimeContractJobNumber}
+                />
+              </div>
+              <PayAppMonthlyList jobNumber={primeContractJobNumber} />
             </main>
           </>
         )}
