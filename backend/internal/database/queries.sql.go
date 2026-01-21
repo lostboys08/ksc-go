@@ -358,19 +358,36 @@ const getJobTree = `-- name: GetJobTree :many
 WITH RECURSIVE job_tree AS (
     -- 1. Anchor: Select Roots (Items with no parent)
     -- We alias the table as 'root' to prevent ambiguity errors
-    SELECT 
-        root.id, 
-        root.job_id, 
-        root.parent_id, 
-        root.sort_order, 
-        root.item_number, 
+    SELECT
+        root.id,
+        root.job_id,
+        root.parent_id,
+        root.sort_order,
+        root.item_number,
         root.description,
-        root.scheduled_value, 
-        root.budget, 
-        root.job_cost_id, 
-        root.qty, 
-        root.unit, 
+        root.scheduled_value,
+        root.budget,
+        root.job_cost_id,
+        root.qty,
+        root.unit,
         root.unit_price,
+        root.cost_method,
+        root.production_rate,
+        root.production_units,
+        root.man_hours,
+        root.production_hours,
+        root.crew_days,
+        root.plug,
+        root.labor,
+        root.equip,
+        root.misc,
+        root.material,
+        root.sub,
+        root.trucking,
+        root.indirect,
+        root.bond,
+        root.overhead,
+        root.profit,
         1 AS depth,
         ARRAY[root.sort_order] AS path_order
     FROM job_items root
@@ -379,43 +396,77 @@ WITH RECURSIVE job_tree AS (
     UNION ALL
 
     -- 2. Recursion: Join Children to Parents
-    SELECT 
-        c.id, 
-        c.job_id, 
-        c.parent_id, 
-        c.sort_order, 
-        c.item_number, 
+    SELECT
+        c.id,
+        c.job_id,
+        c.parent_id,
+        c.sort_order,
+        c.item_number,
         c.description,
-        c.scheduled_value, 
-        c.budget, 
-        c.job_cost_id, 
-        c.qty, 
-        c.unit, 
+        c.scheduled_value,
+        c.budget,
+        c.job_cost_id,
+        c.qty,
+        c.unit,
         c.unit_price,
+        c.cost_method,
+        c.production_rate,
+        c.production_units,
+        c.man_hours,
+        c.production_hours,
+        c.crew_days,
+        c.plug,
+        c.labor,
+        c.equip,
+        c.misc,
+        c.material,
+        c.sub,
+        c.trucking,
+        c.indirect,
+        c.bond,
+        c.overhead,
+        c.profit,
         p.depth + 1,
         p.path_order || c.sort_order
     FROM job_items c
     JOIN job_tree p ON c.parent_id = p.id
 )
-SELECT id, job_id, parent_id, sort_order, item_number, description, scheduled_value, budget, job_cost_id, qty, unit, unit_price, depth, path_order FROM job_tree
+SELECT id, job_id, parent_id, sort_order, item_number, description, scheduled_value, budget, job_cost_id, qty, unit, unit_price, cost_method, production_rate, production_units, man_hours, production_hours, crew_days, plug, labor, equip, misc, material, sub, trucking, indirect, bond, overhead, profit, depth, path_order FROM job_tree
 ORDER BY path_order
 `
 
 type GetJobTreeRow struct {
-	ID             uuid.UUID      `json:"id"`
-	JobID          uuid.UUID      `json:"job_id"`
-	ParentID       uuid.NullUUID  `json:"parent_id"`
-	SortOrder      int32          `json:"sort_order"`
-	ItemNumber     string         `json:"item_number"`
-	Description    string         `json:"description"`
-	ScheduledValue string         `json:"scheduled_value"`
-	Budget         string         `json:"budget"`
-	JobCostID      sql.NullString `json:"job_cost_id"`
-	Qty            string         `json:"qty"`
-	Unit           sql.NullString `json:"unit"`
-	UnitPrice      string         `json:"unit_price"`
-	Depth          int32          `json:"depth"`
-	PathOrder      interface{}    `json:"path_order"`
+	ID              uuid.UUID      `json:"id"`
+	JobID           uuid.UUID      `json:"job_id"`
+	ParentID        uuid.NullUUID  `json:"parent_id"`
+	SortOrder       int32          `json:"sort_order"`
+	ItemNumber      string         `json:"item_number"`
+	Description     string         `json:"description"`
+	ScheduledValue  string         `json:"scheduled_value"`
+	Budget          string         `json:"budget"`
+	JobCostID       sql.NullString `json:"job_cost_id"`
+	Qty             string         `json:"qty"`
+	Unit            sql.NullString `json:"unit"`
+	UnitPrice       string         `json:"unit_price"`
+	CostMethod      sql.NullString `json:"cost_method"`
+	ProductionRate  sql.NullString `json:"production_rate"`
+	ProductionUnits sql.NullString `json:"production_units"`
+	ManHours        string         `json:"man_hours"`
+	ProductionHours string         `json:"production_hours"`
+	CrewDays        string         `json:"crew_days"`
+	Plug            string         `json:"plug"`
+	Labor           string         `json:"labor"`
+	Equip           string         `json:"equip"`
+	Misc            string         `json:"misc"`
+	Material        string         `json:"material"`
+	Sub             string         `json:"sub"`
+	Trucking        string         `json:"trucking"`
+	Indirect        string         `json:"indirect"`
+	Bond            string         `json:"bond"`
+	Overhead        string         `json:"overhead"`
+	Profit          string         `json:"profit"`
+	Depth           int32          `json:"depth"`
+	PathOrder       interface{}    `json:"path_order"`
 }
 
 // 3. Sort by the array path to recreate Excel structure
@@ -441,6 +492,23 @@ func (q *Queries) GetJobTree(ctx context.Context, jobID uuid.UUID) ([]GetJobTree
 			&i.Qty,
 			&i.Unit,
 			&i.UnitPrice,
+			&i.CostMethod,
+			&i.ProductionRate,
+			&i.ProductionUnits,
+			&i.ManHours,
+			&i.ProductionHours,
+			&i.CrewDays,
+			&i.Plug,
+			&i.Labor,
+			&i.Equip,
+			&i.Misc,
+			&i.Material,
+			&i.Sub,
+			&i.Trucking,
+			&i.Indirect,
+			&i.Bond,
+			&i.Overhead,
+			&i.Profit,
 			&i.Depth,
 			&i.PathOrder,
 		); err != nil {
@@ -801,6 +869,92 @@ func (q *Queries) GetPayAppMonthsForJob(ctx context.Context, jobID uuid.UUID) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertBidItem = `-- name: InsertBidItem :exec
+INSERT INTO job_items (
+    id, job_id, parent_id, sort_order, item_number, description,
+    scheduled_value, job_cost_id, budget, qty, unit, unit_price,
+    cost_method, production_rate, production_units,
+    man_hours, production_hours, crew_days, plug,
+    labor, equip, misc, material, sub, trucking,
+    indirect, bond, overhead, profit
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11, $12,
+    $13, $14, $15,
+    $16, $17, $18, $19,
+    $20, $21, $22, $23, $24, $25,
+    $26, $27, $28, $29
+)
+`
+
+type InsertBidItemParams struct {
+	ID              uuid.UUID      `json:"id"`
+	JobID           uuid.UUID      `json:"job_id"`
+	ParentID        uuid.NullUUID  `json:"parent_id"`
+	SortOrder       int32          `json:"sort_order"`
+	ItemNumber      string         `json:"item_number"`
+	Description     string         `json:"description"`
+	ScheduledValue  string         `json:"scheduled_value"`
+	JobCostID       sql.NullString `json:"job_cost_id"`
+	Budget          string         `json:"budget"`
+	Qty             string         `json:"qty"`
+	Unit            sql.NullString `json:"unit"`
+	UnitPrice       string         `json:"unit_price"`
+	CostMethod      sql.NullString `json:"cost_method"`
+	ProductionRate  sql.NullString `json:"production_rate"`
+	ProductionUnits sql.NullString `json:"production_units"`
+	ManHours        string         `json:"man_hours"`
+	ProductionHours string         `json:"production_hours"`
+	CrewDays        string         `json:"crew_days"`
+	Plug            string         `json:"plug"`
+	Labor           string         `json:"labor"`
+	Equip           string         `json:"equip"`
+	Misc            string         `json:"misc"`
+	Material        string         `json:"material"`
+	Sub             string         `json:"sub"`
+	Trucking        string         `json:"trucking"`
+	Indirect        string         `json:"indirect"`
+	Bond            string         `json:"bond"`
+	Overhead        string         `json:"overhead"`
+	Profit          string         `json:"profit"`
+}
+
+// Inserts a bid item with all cost columns (for batch import)
+func (q *Queries) InsertBidItem(ctx context.Context, arg InsertBidItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertBidItem,
+		arg.ID,
+		arg.JobID,
+		arg.ParentID,
+		arg.SortOrder,
+		arg.ItemNumber,
+		arg.Description,
+		arg.ScheduledValue,
+		arg.JobCostID,
+		arg.Budget,
+		arg.Qty,
+		arg.Unit,
+		arg.UnitPrice,
+		arg.CostMethod,
+		arg.ProductionRate,
+		arg.ProductionUnits,
+		arg.ManHours,
+		arg.ProductionHours,
+		arg.CrewDays,
+		arg.Plug,
+		arg.Labor,
+		arg.Equip,
+		arg.Misc,
+		arg.Material,
+		arg.Sub,
+		arg.Trucking,
+		arg.Indirect,
+		arg.Bond,
+		arg.Overhead,
+		arg.Profit,
+	)
+	return err
 }
 
 const insertJobCostLedger = `-- name: InsertJobCostLedger :exec

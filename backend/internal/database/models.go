@@ -37,19 +37,36 @@ type JobCostLedger struct {
 }
 
 type JobItem struct {
-	ID             uuid.UUID      `json:"id"`
-	JobID          uuid.UUID      `json:"job_id"`
-	ParentID       uuid.NullUUID  `json:"parent_id"`
-	SortOrder      int32          `json:"sort_order"`
-	ItemNumber     string         `json:"item_number"`
-	Description    string         `json:"description"`
-	ScheduledValue string         `json:"scheduled_value"`
-	JobCostID      sql.NullString `json:"job_cost_id"`
-	Budget         string         `json:"budget"`
-	Qty            string         `json:"qty"`
-	Unit           sql.NullString `json:"unit"`
-	UnitPrice      string         `json:"unit_price"`
-	UpdatedAt      sql.NullTime   `json:"updated_at"`
+	ID              uuid.UUID      `json:"id"`
+	JobID           uuid.UUID      `json:"job_id"`
+	ParentID        uuid.NullUUID  `json:"parent_id"`
+	SortOrder       int32          `json:"sort_order"`
+	ItemNumber      string         `json:"item_number"`
+	Description     string         `json:"description"`
+	ScheduledValue  string         `json:"scheduled_value"`
+	JobCostID       sql.NullString `json:"job_cost_id"`
+	Budget          string         `json:"budget"`
+	Qty             string         `json:"qty"`
+	Unit            sql.NullString `json:"unit"`
+	UnitPrice       string         `json:"unit_price"`
+	UpdatedAt       sql.NullTime   `json:"updated_at"`
+	CostMethod      sql.NullString `json:"cost_method"`
+	ProductionRate  sql.NullString `json:"production_rate"`
+	ProductionUnits sql.NullString `json:"production_units"`
+	ManHours        string         `json:"man_hours"`
+	ProductionHours string         `json:"production_hours"`
+	CrewDays        string         `json:"crew_days"`
+	Plug            string         `json:"plug"`
+	Labor           string         `json:"labor"`
+	Equip           string         `json:"equip"`
+	Misc            string         `json:"misc"`
+	Material        string         `json:"material"`
+	Sub             string         `json:"sub"`
+	Trucking        string         `json:"trucking"`
+	Indirect        string         `json:"indirect"`
+	Bond            string         `json:"bond"`
+	Overhead        string         `json:"overhead"`
+	Profit          string         `json:"profit"`
 }
 
 type PayApplication struct {

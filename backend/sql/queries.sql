@@ -78,19 +78,36 @@ WHERE job_item_id = $1 AND pay_app_month = $2;
 WITH RECURSIVE job_tree AS (
     -- 1. Anchor: Select Roots (Items with no parent)
     -- We alias the table as 'root' to prevent ambiguity errors
-    SELECT 
-        root.id, 
-        root.job_id, 
-        root.parent_id, 
-        root.sort_order, 
-        root.item_number, 
+    SELECT
+        root.id,
+        root.job_id,
+        root.parent_id,
+        root.sort_order,
+        root.item_number,
         root.description,
-        root.scheduled_value, 
-        root.budget, 
-        root.job_cost_id, 
-        root.qty, 
-        root.unit, 
+        root.scheduled_value,
+        root.budget,
+        root.job_cost_id,
+        root.qty,
+        root.unit,
         root.unit_price,
+        root.cost_method,
+        root.production_rate,
+        root.production_units,
+        root.man_hours,
+        root.production_hours,
+        root.crew_days,
+        root.plug,
+        root.labor,
+        root.equip,
+        root.misc,
+        root.material,
+        root.sub,
+        root.trucking,
+        root.indirect,
+        root.bond,
+        root.overhead,
+        root.profit,
         1 AS depth,
         ARRAY[root.sort_order] AS path_order
     FROM job_items root
@@ -99,19 +116,36 @@ WITH RECURSIVE job_tree AS (
     UNION ALL
 
     -- 2. Recursion: Join Children to Parents
-    SELECT 
-        c.id, 
-        c.job_id, 
-        c.parent_id, 
-        c.sort_order, 
-        c.item_number, 
+    SELECT
+        c.id,
+        c.job_id,
+        c.parent_id,
+        c.sort_order,
+        c.item_number,
         c.description,
-        c.scheduled_value, 
-        c.budget, 
-        c.job_cost_id, 
-        c.qty, 
-        c.unit, 
+        c.scheduled_value,
+        c.budget,
+        c.job_cost_id,
+        c.qty,
+        c.unit,
         c.unit_price,
+        c.cost_method,
+        c.production_rate,
+        c.production_units,
+        c.man_hours,
+        c.production_hours,
+        c.crew_days,
+        c.plug,
+        c.labor,
+        c.equip,
+        c.misc,
+        c.material,
+        c.sub,
+        c.trucking,
+        c.indirect,
+        c.bond,
+        c.overhead,
+        c.profit,
         p.depth + 1,
         p.path_order || c.sort_order
     FROM job_items c
@@ -334,6 +368,24 @@ CROSS JOIN budget_value bv
 CROSS JOIN total_scheduled ts
 LEFT JOIN monthly_costs mc ON mc.month = mcq.month
 ORDER BY mcq.month;
+
+-- name: InsertBidItem :exec
+-- Inserts a bid item with all cost columns (for batch import)
+INSERT INTO job_items (
+    id, job_id, parent_id, sort_order, item_number, description,
+    scheduled_value, job_cost_id, budget, qty, unit, unit_price,
+    cost_method, production_rate, production_units,
+    man_hours, production_hours, crew_days, plug,
+    labor, equip, misc, material, sub, trucking,
+    indirect, bond, overhead, profit
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11, $12,
+    $13, $14, $15,
+    $16, $17, $18, $19,
+    $20, $21, $22, $23, $24, $25,
+    $26, $27, $28, $29
+);
 
 -- name: GetOverBudgetPhases :many
 -- Fetches phase codes where actual costs exceed budget

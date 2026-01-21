@@ -130,6 +130,21 @@ func handleUpload(queries *database.Queries) http.HandlerFunc {
 				return
 			}
 
+		case "bid":
+			jobNumber := r.FormValue("jobNumber")
+			jobName := r.FormValue("jobName")
+
+			if jobNumber == "" {
+				http.Error(w, "Job number is required for bid import", http.StatusBadRequest)
+				return
+			}
+
+			result, err = service.ImportBid(ctx, f, queries, jobNumber, jobName)
+			if err != nil {
+				http.Error(w, "Import failed: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 		default:
 			http.Error(w, "Unknown upload type: "+uploadType, http.StatusBadRequest)
 			return
