@@ -49,19 +49,19 @@ function App() {
                 className={`nav-item ${activeView === 'budget' ? 'active' : ''}`}
                 onClick={() => setActiveView('budget')}
               >
-                Budget
+                Budgets
               </button>
               <button
                 className={`nav-item ${activeView === 'commitments' ? 'active' : ''}`}
                 onClick={() => setActiveView('commitments')}
               >
-                Commitments (POs)
+                Purchase Orders
               </button>
               <button
                 className={`nav-item ${activeView === 'prime-contract' ? 'active' : ''}`}
                 onClick={() => setActiveView('prime-contract')}
               >
-                Prime Contract (Pay Apps)
+                Pay Applications
               </button>
             </div>
 
