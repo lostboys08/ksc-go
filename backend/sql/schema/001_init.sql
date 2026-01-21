@@ -1,4 +1,4 @@
--- /backend/sql/001_init.sql
+-- +goose Up
 
 -- 1. Project Metadata
 CREATE TABLE jobs (
@@ -47,3 +47,8 @@ CREATE TABLE pay_applications (
   updated_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(job_item_id, pay_app_month)
 );
+
+-- +goose Down
+DROP TABLE IF EXISTS pay_applications;
+DROP TABLE IF EXISTS job_items;
+DROP TABLE IF EXISTS jobs;

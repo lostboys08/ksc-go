@@ -11,9 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Map your local schema folder to the special init directory.
-      # Postgres runs any .sql files here exactly once when creating the DB.
-      - ./backend/sql/schema:/docker-entrypoint-initdb.d
+      # Schema is now managed by goose migrations (make migrate)
 
   adminer:
     image: adminer

@@ -1,3 +1,4 @@
+-- +goose Up
 -- Cumulative view for pay application calculations
 -- Provides running totals, percent complete, and dollar amounts per job_item/month
 -- All computed numeric fields cast to TEXT for consistent Go string types
@@ -71,3 +72,6 @@ SELECT
     -- Previous cumulative dollar amount
     (previous_cumulative_qty_num * unit_price::NUMERIC)::TEXT AS previous_cumulative_amount
 FROM cumulative;
+
+-- +goose Down
+DROP VIEW IF EXISTS pay_application_cumulative;
