@@ -39,6 +39,23 @@ migrate-status:
 migrate-down:
 	docker compose run --rm --build migrate down
 
+# One-time: Mark existing migrations as applied (for databases created before goose)
+migrate-init:
+	@echo "Creating goose version table and marking existing migrations as applied..."
+	docker exec ksc_db psql -U ksc -d ksc_data -c " \
+		CREATE TABLE IF NOT EXISTS goose_db_version ( \
+			id SERIAL PRIMARY KEY, \
+			version_id BIGINT NOT NULL, \
+			is_applied BOOLEAN NOT NULL, \
+			tstamp TIMESTAMP DEFAULT now() \
+		); \
+		INSERT INTO goose_db_version (version_id, is_applied) VALUES (0, true) ON CONFLICT DO NOTHING; \
+		INSERT INTO goose_db_version (version_id, is_applied) VALUES (1, true); \
+		INSERT INTO goose_db_version (version_id, is_applied) VALUES (2, true); \
+		INSERT INTO goose_db_version (version_id, is_applied) VALUES (3, true); \
+	"
+	@echo "Done. Future migrations will run normally."
+
 # 🚀 Run the Apps
 run-back:
 	cd backend && go run ./cmd/api

@@ -650,6 +650,7 @@ func toNullString(s string) sql.NullString {
 }
 
 // cleanNumeric strips currency symbols, commas, and whitespace from numeric strings.
+// Handles Excel accounting format negatives like "(123.45)" -> "-123.45"
 // Returns an error for Excel errors like #REF!, #DIV/0!, #N/A, #VALUE!
 func cleanNumeric(s string) (string, error) {
 	s = strings.TrimSpace(s)
@@ -663,6 +664,10 @@ func cleanNumeric(s string) (string, error) {
 	s = strings.ReplaceAll(s, ",", "")
 	s = strings.ReplaceAll(s, " ", "")
 	s = strings.ReplaceAll(s, "%", "")
+	// Handle accounting-style negatives: (123.45) -> -123.45
+	if strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")") {
+		s = "-" + s[1:len(s)-1]
+	}
 	if s == "" {
 		return "0", nil
 	}
