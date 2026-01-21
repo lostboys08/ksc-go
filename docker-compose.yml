@@ -44,7 +44,9 @@ services:
       - prod
 
   migrate:
-    image: ghcr.io/pressly/goose:latest
+    build:
+      context: .
+      dockerfile: migrate.Dockerfile
     depends_on:
       - db
     volumes:

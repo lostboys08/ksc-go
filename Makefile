@@ -22,7 +22,7 @@ reset-db:
 	docker compose up -d db
 	@echo "Waiting for database to be ready..."
 	@sleep 3
-	docker compose run --rm migrate up
+	docker compose run --rm --build migrate up
 	@echo "Database has been wiped and re-initialized with migrations."
 
 # 🛠️ Code Generation
@@ -31,13 +31,13 @@ sqlc:
 
 # 🗃️ Database Migrations (using goose in docker)
 migrate:
-	docker compose run --rm migrate up
+	docker compose run --rm --build migrate up
 
 migrate-status:
-	docker compose run --rm migrate status
+	docker compose run --rm --build migrate status
 
 migrate-down:
-	docker compose run --rm migrate down
+	docker compose run --rm --build migrate down
 
 # 🚀 Run the Apps
 run-back:
@@ -65,7 +65,7 @@ deploy:
 	@echo "Ensuring database is running..."
 	docker compose up -d db
 	@echo "Running database migrations..."
-	docker compose run --rm migrate up
+	docker compose run --rm --build migrate up
 	@echo "Stopping application containers..."
 	docker compose --profile prod down
 	@echo "Rebuilding and starting services..."
