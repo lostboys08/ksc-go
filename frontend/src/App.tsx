@@ -24,6 +24,8 @@ type ActiveView =
   // Legacy views
   | 'upload'
   | 'performance-report'
+  // Settings
+  | 'settings'
 
 function App() {
   const [activeView, setActiveView] = useState<ActiveView>('budget')
@@ -94,7 +96,6 @@ function App() {
             <div className="nav-section-title">Company Level</div>
 
             <div className="nav-subsection">
-              <div className="nav-subsection-title">Dashboard</div>
               <button
                 className={`nav-item ${activeView === 'wip-report' ? 'active' : ''}`}
                 onClick={() => setActiveView('wip-report')}
@@ -124,6 +125,12 @@ function App() {
               onClick={() => setActiveView('upload')}
             >
               Upload
+            </button>
+            <button
+              className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
+              onClick={() => setActiveView('settings')}
+            >
+              Project Settings
             </button>
           </div>
         </nav>
@@ -336,7 +343,7 @@ function App() {
           </>
         )}
       </div>
-    </div>
+    </div >
   )
 }
 
