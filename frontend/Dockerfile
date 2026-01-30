@@ -27,6 +27,6 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 # Default backend URL for local docker-compose
 ENV BACKEND_URL=http://backend:8080
 
-EXPOSE 80
+EXPOSE 3000
 
 # nginx:alpine processes templates in /etc/nginx/templates/ automatically on startup
