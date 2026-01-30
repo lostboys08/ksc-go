@@ -21,12 +21,7 @@ FROM nginx:alpine
 # Copy built assets from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy nginx template (will be processed at runtime)
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-
-# Default backend URL for local docker-compose
-ENV BACKEND_URL=http://backend:8080
+# Copy nginx config (static, no template substitution)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 3000
-
-# nginx:alpine processes templates in /etc/nginx/templates/ automatically on startup
