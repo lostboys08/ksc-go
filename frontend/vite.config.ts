@@ -69,4 +69,14 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    port: 3000,
+    host: true,
+    proxy: {
+      '/api': {
+        target: process.env.BACKEND_URL || 'http://backend:8080',
+        changeOrigin: true,
+      },
+    },
+  },
 })
