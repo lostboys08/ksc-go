@@ -18,7 +18,10 @@ import (
 )
 
 func main() {
+	log.Println("Backend starting...")
+
 	dbURL := os.Getenv("DATABASE_URL")
+	log.Println("DATABASE_URL set:", dbURL != "")
 	if dbURL == "" {
 		dbURL = "postgres://ksc:password@localhost:5432/ksc_data?sslmode=disable"
 	}
