@@ -3,11 +3,15 @@ package main
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -16,6 +20,40 @@ import (
 	"github.com/lostboys08/ksc-go/backend/internal/database"
 	"github.com/lostboys08/ksc-go/backend/internal/service"
 )
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
+
+func runMigrations(db *sql.DB) error {
+	entries, err := fs.ReadDir(migrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to read migrations: %w", err)
+	}
+
+	// Sort files by name to ensure order
+	var files []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
+			files = append(files, entry.Name())
+		}
+	}
+	sort.Strings(files)
+
+	for _, file := range files {
+		content, err := migrationsFS.ReadFile("migrations/" + file)
+		if err != nil {
+			return fmt.Errorf("failed to read migration %s: %w", file, err)
+		}
+
+		log.Printf("Running migration: %s", file)
+		_, err = db.Exec(string(content))
+		if err != nil {
+			return fmt.Errorf("failed to run migration %s: %w", file, err)
+		}
+	}
+
+	return nil
+}
 
 func main() {
 	log.Println("Backend starting...")
@@ -36,6 +74,12 @@ func main() {
 		log.Fatal("Cannot connect to database:", err)
 	}
 	log.Println("Connected to database")
+
+	// Run migrations
+	if err := runMigrations(db); err != nil {
+		log.Fatal("Failed to run migrations:", err)
+	}
+	log.Println("Migrations completed")
 
 	queries := database.New(db)
 
